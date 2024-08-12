@@ -1,0 +1,113 @@
+<html>
+
+<body>
+  <script src="https://d3js.org/d3.v4.js"></script>
+
+  <!-- Create a div where the graph will take place -->
+  <div id="chord_diagram"></div>
+  <div id="controls"></div>
+  <script src="https://d3js.org/d3.v4.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/pdfkit@0.10.0/js/pdfkit.standalone.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/svg-to-pdfkit@0.1.8/source.js"></script>
+
+  <script>
+    // create the svg area
+    var svg = d3.select("#chord_diagram")
+      .append("svg")
+      .attr("width", 450)
+      .attr("height", 450)
+      .append("g")
+      .attr("transform", "translate(220,220)")
+
+    // create a matrix
+    var matrix = {{ graph_data | t tojson(indent=2) }};
+
+    var color = d3.scaleOrdinal(d3.schemeCategory20);
+
+    for (i = 0; i < 20; i++) {
+      _ = color(i);
+      console.log(color(i))
+    }
+
+    // give this matrix to d3.chord(): it will calculates all the info we need to draw arc and ribbon
+    var res = d3.chord()
+      .padAngle(0.05)
+      .sortSubgroups(d3.descending)
+      (matrix)
+
+    // add the groups on the outer part of the circle
+    svg
+      .datum(res)
+      .append("g")
+      .selectAll("g")
+      .data(function (d) { return d.groups; })
+      .enter()
+      .append("g")
+      .append("path")
+      .style("fill", function (d, i) { return color(d.index) })
+      .style("stroke", "black")
+      .style("stroke-width", 0)
+      .attr("d", d3.arc()
+        .innerRadius(180)
+        .outerRadius(210))
+
+    // Add the links between groups
+    svg
+      .datum(res)
+      .append("g")
+      .selectAll("path")
+      .data(function (d) { return d; })
+      .enter()
+      .append("path")
+      .attr("d", d3.ribbon()
+        .radius(180)
+      )
+      .style("fill", function (d) { return '#ccc'; }) // colors depend on the source group. Change to target otherwise.
+      .style("stroke", "#555")
+      .style("stroke-width", 0)
+
+    function svgToPdf() {
+      var svg = d3.select('svg').node();
+      const doc = new window.PDFDocument({ size: [330, 330] });
+      const chunks = [];
+
+      var a = document.createElement("a");
+      document.body.appendChild(a);
+      a.style = "display: none";
+
+      const stream = doc.pipe({
+        // writable stream implementation
+        write: (chunk) => chunks.push(chunk),
+        end: () => {
+          const pdfBlob = new Blob(chunks, {
+            type: 'application/octet-stream'
+          });
+          var blobUrl = URL.createObjectURL(pdfBlob);
+          a.href = blobUrl;
+          a.download = '%s';
+          a.click();
+          window.URL.revokeObjectURL(blobUrl);
+        },
+        on: (event, action) => { },
+        once: (...args) => { },
+        emit: (...args) => { },
+      });
+      window.SVGtoPDF(doc, svg, 0, 0, { useCSS: true });
+      doc.end();
+    };
+
+    function makeButton(btnText, callback) {
+      var btn = d3.select("#controls")
+        .append("input");
+      btn.attr("type", "button")
+        .attr("value", btnText);
+      btn.on("click", callback)
+    }
+
+    makeButton("Save graph as pdf", svgToPdf);
+
+  </script>
+</body>
+
+</html>
